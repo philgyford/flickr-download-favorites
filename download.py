@@ -2,11 +2,14 @@ import configparser
 import json
 import logging
 import os
+import re
+import shutil
 import sys
 import time
 
 import flickrapi
 from flickrapi.exceptions import FlickrError
+import requests
 
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -94,6 +97,8 @@ class Downloader(object):
         self._fetch_extra_data()
 
         self._save_results()
+
+        self._fetch_photos()
 
         logger.info("Done! Downloaded {} photo(s) and data".format(
                                                             len(self.results)))
@@ -231,33 +236,72 @@ class Downloader(object):
         Having got all the data in self.results, save it to JSON files.
         """
         # for photo in self.results:
-        for photo_data in self.results:
-            base_filename = self._make_filename(photo_data)
+        for photo in self.results:
+            base_filename = self._make_photo_filename(photo['info'])
             base_path = os.path.join(self.path, 'favorites', 'data')
 
             for kind in ['info', 'exif', 'sizes']:
-                if photo_data[kind] is not None:
+                if photo[kind] is not None:
                     filename = '{}_{}.json'.format(base_filename, kind)
 
                     path = os.path.join(base_path, filename)
 
                     with open(path, 'w') as f:
-                        f.write( json.dumps(photo_data[kind], indent=2) )
+                        f.write( json.dumps(photo[kind], indent=2) )
 
-    def _make_filename(self, photo_data):
+    def _fetch_photos(self):
+        for photo in self.results:
+            if photo['sizes'] is not None:
+                if photo['info']['media'] == 'video':
+                    # Accepted video formats:
+                    # https://help.yahoo.com/kb/flickr/sln15628.html
+                    # BUT, they all seem to be sent as video/mp4.
+                    content_types = ['video/mp4',]
+                    url = self._get_url_from_sizes(photo['sizes'], 'Site MP4')
+                    extension = 'mp4'
+                else:
+                    content_types = [
+                        'image/jpeg', 'image/jpg', 'image/png', 'image/gif',]
+                    if 'originalformat' in photo['info']:
+                        url = self._get_url_from_sizes(photo['sizes'], 'Original')
+                        extension = photo['info']['originalformat']
+                    else:
+                        # Can't download the original file so:
+                        url = self._get_url_from_sizes(photo['sizes'], 'Large 2048')
+                        extension = 'jpg'
+
+                if url is None:
+                    logger.error(
+                        "Couldn't find the URL to download for photo {}".format(
+                                                        photo['info']['id']))
+                    return None
+
+                download_filepath = self._download_file(url, content_types)
+
+                if download_filepath is not None:
+                    base_filename = self._make_photo_filename(photo['info'])
+                    filename = '{}.{}'.format(base_filename, extension)
+
+                    save_filepath = os.path.join(
+                                    self.path, 'favorites', 'photos', filename)
+
+                    os.rename(download_filepath, save_filepath)
+
+    def _make_photo_filename(self, photo_info):
         """
-        Makes a filename for this photo using the date, owner and ID.
+        Makes a filename for this photo using its date, owner and ID.
         Does not include the file extension.
+        Used for making the JSON files' names as well as the photo/video itself.
         """
-        if photo_data['info']['owner']['realname'] != '':
-            name = photo_data['info']['owner']['realname']
+        if photo_info['owner']['realname'] != '':
+            name = photo_info['owner']['realname']
         else:
-            name = photo_data['info']['owner']['username']
+            name = photo_info['owner']['username']
 
         filename = '{}_{}_{}'.format(
-                                photo_data['info']['dates']['taken'],
+                                photo_info['dates']['taken'],
                                 name,
-                                photo_data['info']['id'])
+                                photo_info['id'])
 
         filename = filename.replace(' ', '_') \
                             .replace('/', '-') \
@@ -270,7 +314,95 @@ class Downloader(object):
 
         return filename
 
+    def _get_url_from_sizes(self, sizes, size):
+        """
+        Given the dict of 'sizes' data for a phoot/video, return the URL
+        referred to by `size` (e.g. 'Original', 'Medium 640', etc).
+        """
+        for url in sizes['size']:
+            if url['label'] == size:
+                return url['source']
 
+        # Shouldn't get here, but...
+        return None
+
+    def _download_file(self, url, acceptable_content_types):
+        """
+        Downloads a file from a URL and saves it into /tmp/.
+        Returns the filepath of the downlaoded file, or None if something goes
+        wrong.
+
+        Expects:
+            url -- The URL of the file to fetch.
+            acceptable_content_types -- A list of MIME types the request must
+                match. eg:['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+        """
+        logger.info("Downloading {}".format(url))
+
+        try:
+            # From http://stackoverflow.com/a/13137873/250962
+            r = requests.get(url, stream=True)
+            if r.status_code == 200:
+                try:
+                    if r.headers['Content-Type'] in acceptable_content_types:
+                        # Where we'll temporarily save the file:
+                        filename = self._get_downloaded_filename(url, r.headers)
+                        filepath = '%s%s' % (self.path, filename)
+                        # Save the file there:
+                        with open(filepath, 'wb') as f:
+                            r.raw.decode_content = True
+                            shutil.copyfileobj(r.raw, f)
+                        return filepath
+                    else:
+                        logger.log('error',
+                        "Invalid content type ({}) when fetching {}".format(
+                                            r.headers['content_type'], url))
+                except KeyError:
+                    logger.log('error',
+                        "No content_type headers found when fetching {}".format(url))
+            else:
+                logger.log('error',
+                                "Got status code {} when fetching {}".format(
+                                                        r.status_code, url))
+        except requests.exceptions.RequestException as e:
+            logger.log('error',
+                        "Something when wrong when fetching {}: {}".format(url, e))
+
+        # Something went wrong if we end up here.
+        return None
+
+    def _get_downloaded_filename(self, url, headers={}):
+        """
+        Find the filename of a downloaded file.
+        Returns a string.
+
+        url -- The URL of the file that's been downloaded.
+        headers -- A dict of response headers from requesting the URL.
+
+        url will probably end in something like 'filename.jpg'.
+        If not, we'll try and use the filename from the Content-Disposition
+        header.
+        This is the case for Videos we download from Flickr.
+        """
+        # Should work for photos:
+        filename = os.path.basename(url)
+
+        if filename == '':
+            # Probably a Flickr video, so we have to get the filename from
+            # headers:
+            try:
+                # Could be like 'attachment; filename=26897200312.avi'
+                disposition = headers['Content-Disposition']
+                m = re.search(
+                            'filename\=(.*?)$', headers['Content-Disposition'])
+                try:
+                    filename = m.group(1)
+                except (AttributeError, IndexError):
+                    pass
+            except KeyError:
+                pass
+
+        return filename
 
 if __name__ == "__main__":
 
