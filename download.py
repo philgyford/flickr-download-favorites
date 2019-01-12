@@ -171,59 +171,69 @@ class Downloader(object):
         info about the photo.
         https://www.flickr.com/services/api/explore/flickr.photos.getInfo
         photo_id -- The Flickr photo ID.
+        Returns a dict of data or None if something went wrong.
         """
         try:
             results = self.api.photos.getInfo(photo_id = photo_id)
+            results = results['photo']
         except FlickrError as e:
             logger.error("Couldn't fetch photo info for {}: {}".format(
                                                                 photo_id, e))
-            results = {'photo': {}}
+            results = None
 
-        return results['photo']
+        return results
 
     def _fetch_photo_sizes(self, photo_id):
         """Calls the photos.getSizes() method of the Flickr API and returns the
         photo's sizes.
         https://www.flickr.com/services/api/explore/flickr.photos.getSizes
         photo_id -- The Flickr photo ID.
+        Returns a dict of data or None if something went wrong.
         """
         try:
             results = self.api.photos.getSizes(photo_id = photo_id)
+            results = results['sizes']
         except FlickrError as e:
             logger.error("Couldn't fetch photo sizes for {}: {}".format(
                                                                 photo_id, e))
-            results = {'sizes': {}}
+            results = None
 
-        return results['sizes']
+        return results
 
     def _fetch_photo_exif(self, photo_id):
         """Calls the photos.getExif() method of the Flickr API and returns the
         photo's EXIF data.
         https://www.flickr.com/services/api/explore/flickr.photos.getExif
         photo_id -- The Flickr photo ID.
+        Returns a dict of data or None if something went wrong.
         """
         try:
             results = self.api.photos.getExif(photo_id = photo_id)
+            results = results['photo']
         except FlickrError as e:
             logger.error("Couldn't fetch photo EXIF data for {}: {}".format(
                                                                 photo_id, e))
-            results = {'photo': {}}
+            results = None
 
-        return results['photo']
+        return results
 
     def _save_results(self):
+        """
+        Having got all the data in self.results, save it to JSON files.
+        """
         # for photo in self.results:
         for photo_data in self.results:
             base_filename = self._make_filename(photo_data)
             base_path = os.path.join(self.path, 'favorites', 'data')
 
             for kind in ['info', 'exif', 'sizes']:
-                filename = '{}_{}.json'.format(base_filename, kind)
+                if photo_data[kind] is not None:
+                    filename = '{}_{}.json'.format(base_filename, kind)
 
-                path = os.path.join(base_path, filename)
+                    path = os.path.join(base_path, filename)
 
-                with open(path, 'w') as f:
-                    f.write( json.dumps(photo_data[kind], indent=2) )
+                    with open(path, 'w') as f:
+                        f.write( json.dumps(photo_data[kind], indent=2) )
 
     def _make_filename(self, photo_data):
         """
@@ -240,7 +250,14 @@ class Downloader(object):
                                 name,
                                 photo_data['info']['id'])
 
-        filename = filename.replace(' ', '_')
+        filename = filename.replace(' ', '_') \
+                            .replace('/', '-') \
+                            .replace(':', '-') \
+
+        keep_chars = ('-', '_')
+
+        filename = "".join(
+                        c for c in filename if c.isalnum() or c in keep_chars)
 
         return filename
 
