@@ -34,7 +34,7 @@ class Downloader(object):
         self.total_pages = 1
 
         # How many photos to get per page (500 is maximum).
-        self.per_page = 5
+        self.per_page = 500
 
         # Will store the IDs of all the photos to download.
         self.photo_ids = []
@@ -158,7 +158,7 @@ class Downloader(object):
         Go through all the pages of photos and fetch the full list of photos.
         Just the basic data.
         """
-        while self.page_number <= 1:
+        while self.page_number <= self.total_pages:
             self._fetch_page()
             self.page_number += 1
             time.sleep(0.5) # Being nice.
