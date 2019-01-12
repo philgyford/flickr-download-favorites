@@ -1,9 +1,7 @@
 import configparser
-import datetime
 import json
 import logging
 import os
-import pytz
 import sys
 import time
 
@@ -26,11 +24,20 @@ class Downloader(object):
         self.api = flickrapi.FlickrAPI(self.api_key, self.api_secret,
                                         format='parsed-json')
 
+        # To keep track of where we are during fetching.
         self.page_number = 1
         self.total_pages = 1
+
+        # How many photos to get per page (500 is maximum).
         self.per_page = 5
+
+        # Will store the IDs of all the photos to download.
+        self.photo_ids = []
+
+        # Will store the complete data about photos downloaded.
         self.results = []
 
+        # Where we'll make directories and save the data and photos.
         self.path = os.getcwd()
 
     def _load_config(self, config_file):
@@ -76,7 +83,7 @@ class Downloader(object):
 
     def download(self):
         """
-        Fetch all the favorites.
+        Fetch all the favorites - photos and data.
         """
         self._make_directories()
 
@@ -87,6 +94,9 @@ class Downloader(object):
         self._fetch_extra_data()
 
         self._save_results()
+
+        logger.info("Done! Downloaded {} photo(s) and data".format(
+                                                            len(self.results)))
 
     def _make_directories(self):
         """
@@ -103,7 +113,7 @@ class Downloader(object):
         """
         Calls test.login() to get the very basic user info for the
         authenticating user.
-        Sets self.user_id with the Flickr User ID.
+        Sets self.nsid with the Flickr User ID.
         Docs: https://www.flickr.com/services/api/flickr.test.login.htm
         """
         try:
@@ -115,6 +125,10 @@ class Downloader(object):
             self.nsid = result['user']['id']
 
     def _fetch_pages(self):
+        """
+        Go through all the pages of photos and fetch the full list of photos.
+        Just the basic data.
+        """
         while self.page_number <= 1:
             self._fetch_page()
             self.page_number += 1
@@ -122,10 +136,11 @@ class Downloader(object):
 
     def _fetch_page(self):
         """
-        Fetch one page of initial data about some photos.
+        Fetch one page of basic data about some photos.
+        Adds the fetched data to self.results.
         """
         try:
-            results = self.api.favorites.getList(
+            photos = self.api.favorites.getList(
                                             user_id=self.nsid,
                                             per_page=self.per_page,
                                             page=self.page_number)
@@ -135,35 +150,29 @@ class Downloader(object):
                                                         self.page_number, e))
             exit()
         else:
-            if self.page_number == 1 and 'photos' in results and 'pages' in results['photos']:
+            if self.page_number == 1 and 'photos' in photos and 'pages' in photos['photos']:
                 # First time, set the total_pages there are to fetch.
-                self.total_pages = int(results['photos']['pages'])
+                self.total_pages = int(photos['photos']['pages'])
 
-            # Add the list of photos' data from this page on to our total list:
-            self.results += results['photos']['photo']
+            # Just save the photo IDs. All we need for now.
+            for photo in photos['photos']['photo']:
+                self.photo_ids.append(photo['id'])
 
-            logger.info("Fetched initial data about {} photo(s)".format(
-                                            len(results['photos']['photo'])))
+            logger.info(
+                "Fetched one page of basic data about {} photo(s)".format(
+                                            len(photos['photos']['photo'])))
 
     def _fetch_extra_data(self):
         """
-        Before saving we need to go through the big list of photos we've
-        fetched, and fetch more detailed info to add to each photo's data.
+        Now we've got the IDs of the photos, we go through and fetch
+        complete data about each one and put it all into self.results.
         """
-        extra_results = []
-
-        for i, photo in enumerate(self.results):
-
-            extra_results.append({
-                'fetch_time': datetime.datetime.utcnow().replace(tzinfo=pytz.utc),
-                # Get all the info about this photo:
-                'info': self._fetch_photo_info(photo['id']),
-                'sizes': self._fetch_photo_sizes(photo['id']),
-                'exif': self._fetch_photo_exif(photo['id']),
+        for id in self.photo_ids:
+            self.results.append({
+                'info': self._fetch_photo_info(id),
+                'sizes': self._fetch_photo_sizes(id),
+                'exif': self._fetch_photo_exif(id),
             })
-
-        # Replace self.results with our new array that contains more info.
-        self.results = extra_results
 
     def _fetch_photo_info(self, photo_id):
         """
