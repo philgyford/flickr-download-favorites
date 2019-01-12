@@ -301,8 +301,17 @@ class Downloader(object):
                     if 'originalformat' in photo['info']:
                         url = self._get_url_from_sizes(photo['sizes'], 'Original')
                     else:
-                        # Can't download the original file so:
-                        url = self._get_url_from_sizes(photo['sizes'], 'Large 2048')
+                        # Can't download the original so get the biggest available:
+                        sizes = [
+                            'Large 2048', 'Large 1600', 'Large',
+                            'Medium 800', 'Medium 640', 'Medium',
+                            'Small 320', 'Small', 'Thumbnail',
+                        ]
+
+                        for size in sizes:
+                            url = self._get_url_from_sizes(photo['sizes'], size)
+                            if url is not None:
+                                break
 
                 if url is None:
                     logger.error(
@@ -376,7 +385,7 @@ class Downloader(object):
             if url['label'] == size:
                 return url['source']
 
-        # Shouldn't get here, but...
+        # Not all sizes are available for every photo so we may get here:
         return None
 
     def _download_file(self, url, acceptable_content_types):
