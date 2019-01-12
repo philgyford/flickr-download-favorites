@@ -513,7 +513,7 @@ class Downloader(object):
                 title = 'Photos of you'
 
             css = """
-    body { background: #fff; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1.5; padding: 0 30px; }
+    body { background: #fff; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1.5; padding: 0 30px 2em 30px; }
     h2 { margin: 1em 0 0 0; }
     ul { list-style-type: none; margin: 0; padding: 0; }
 """
