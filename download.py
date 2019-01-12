@@ -122,6 +122,8 @@ class Downloader(object):
 
         self._fetch_photos()
 
+        self._make_html_file()
+
         logger.info("Done! Downloaded {} photo(s) and data".format(
                                                             len(self.results)))
 
@@ -166,6 +168,8 @@ class Downloader(object):
         Fetch one page of basic data about some photos.
         Adds the fetched data to self.results.
         """
+        time.sleep(0.5) # Being nice.
+
         try:
             if self.kind == 'photos_of_me':
                 photos = self.api.people.getPhotosOf(
@@ -265,7 +269,7 @@ class Downloader(object):
         """
         # for photo in self.results:
         for photo in self.results:
-            base_filename = self._make_photo_filename(photo['info'])
+            base_filename = self._make_filename(photo['info'])
             base_path = os.path.join(self.path, self.kind, 'data')
 
             for kind in ['info', 'exif', 'sizes']:
@@ -291,17 +295,14 @@ class Downloader(object):
                     # BUT, they all seem to be sent as video/mp4.
                     content_types = ['video/mp4',]
                     url = self._get_url_from_sizes(photo['sizes'], 'Site MP4')
-                    extension = 'mp4'
                 else:
                     content_types = [
                         'image/jpeg', 'image/jpg', 'image/png', 'image/gif',]
                     if 'originalformat' in photo['info']:
                         url = self._get_url_from_sizes(photo['sizes'], 'Original')
-                        extension = photo['info']['originalformat']
                     else:
                         # Can't download the original file so:
                         url = self._get_url_from_sizes(photo['sizes'], 'Large 2048')
-                        extension = 'jpg'
 
                 if url is None:
                     logger.error(
@@ -311,17 +312,12 @@ class Downloader(object):
                 download_filepath = self._download_file(url, content_types)
 
                 if download_filepath is not None:
-                    base_filename = self._make_photo_filename(photo['info'])
-                    filename = '{}.{}'.format(base_filename, extension)
-
-                    save_filepath = os.path.join(
-                                    self.path, self.kind, 'photos', filename)
-
+                    save_filepath = self._make_photo_filepath(photo['info'])
                     os.rename(download_filepath, save_filepath)
 
-    def _make_photo_filename(self, photo_info):
+    def _make_filename(self, photo_info):
         """
-        Makes a filename for this photo using its date, owner and ID.
+        Makes a filename for this photo or its data using its date, owner and ID.
         Does not include the file extension.
         Used for making the JSON files' names as well as the photo/video itself.
         """
@@ -345,6 +341,31 @@ class Downloader(object):
                         c for c in filename if c.isalnum() or c in keep_chars)
 
         return filename
+
+    def _make_photo_filename(self, photo_info):
+        """
+        Makes the filename for the photo we'll save to disk, including extension.
+        """
+        if photo_info['media'] == 'video':
+            extension = 'mp4'
+        else:
+            if 'originalformat' in photo_info:
+                extension = photo_info['originalformat']
+            else:
+                # Can't download the original file so:
+                extension = 'jpg'
+
+        base_filename = self._make_filename(photo_info)
+        filename = '{}.{}'.format(base_filename, extension)
+
+        return filename
+
+    def _make_photo_filepath(self, photo_info):
+        """
+        Makes the coplete path for the photo we'll save to disk.
+        """
+        filename = self._make_photo_filename(photo_info)
+        return  os.path.join(self.path, self.kind, 'photos', filename)
 
     def _get_url_from_sizes(self, sizes, size):
         """
@@ -436,6 +457,91 @@ class Downloader(object):
 
         return filename
 
+    def _make_html_file(self):
+        """
+        Write a single HTML file listing all the photos.
+        I know this is ugly and a template would be better.
+        """
+        list_html = ''
+
+        for photo in self.results:
+            if photo['info']['owner']['realname']:
+                name = photo['info']['owner']['realname']
+            else:
+                name = photo['info']['owner']['username']
+
+            file = os.path.join('')
+
+            flickr_url = ''
+            for u in photo['info']['urls']['url']:
+                if u['type'] == 'photopage':
+                    flickr_url = u['_content']
+
+            description = ''
+            if photo['info']['description']['_content'] != '':
+                description = '<p>{}</p>'.format(
+                                    photo['info']['description']['_content'])
+
+            data = {
+                'title': photo['info']['title']['_content'],
+                'author': name,
+                'file': self._make_photo_filepath(photo['info']),
+                'description': description,
+                'date_taken': photo['info']['dates']['taken'],
+                'flickr_url': flickr_url,
+            }
+            list_html += """
+<h2>{title}</h2>
+<ul>
+    <li>By {author}</li>
+    <li>Taken {date_taken}</li>
+    <li><a href="{file}">Downloaded file</a> | <a href="{flickr_url}">On Flickr</a><li>
+</ul>
+{description}
+""".format(
+                title=data['title'],
+                author=data['author'],
+                date_taken=data['date_taken'],
+                file=data['file'],
+                flickr_url=data['flickr_url'],
+                description=data['description'],
+            )
+
+            if self.kind == 'favorites':
+                title = 'Favorites'
+            else:
+                title = 'Photos of you'
+
+            css = """
+    body { background: #fff; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1.5; padding: 0 30px; }
+    h2 { margin: 1em 0 0 0; }
+    ul { list-style-type: none; margin: 0; padding: 0; }
+"""
+
+            html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{title}</title>
+  <style type="text/css">
+    {css}
+  </style>
+</head>
+<body>
+    <h1>{title}</h1>
+
+    {list_html}
+</body>
+</html>""".format(
+                title=title,
+                css=css,
+                list_html=list_html,
+            )
+
+        path = os.path.join(self.path, self.kind, 'index.html')
+
+        with open(path, 'w') as f:
+            f.write(html)
 
 if __name__ == "__main__":
 
