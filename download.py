@@ -20,12 +20,14 @@ CONFIG_FILE = 'config.ini'
 
 class Downloader(object):
 
-
     def __init__(self):
         self._load_config(CONFIG_FILE)
 
         self.api = flickrapi.FlickrAPI(self.api_key, self.api_secret,
                                         format='parsed-json')
+
+        # Will be 'favorites' or 'photos_of_me'.
+        self.kind = None
 
         # To keep track of where we are during fetching.
         self.page_number = 1
@@ -84,9 +86,29 @@ class Downloader(object):
         else:
             logger.info("This account is already authorised.")
 
-    def download(self):
+    def get_favorites(self):
         """
-        Fetch all the favorites - photos and data.
+        Fetch and save all the favorites - photos and data.
+        """
+        self.kind = 'favorites'
+
+        logging.info("Fetching favorites")
+
+        self._start_fetching()
+
+    def get_photos_of_me(self):
+        """
+        Fetch and save all the photos of the user - photos and data.
+        """
+        self.kind = 'photos_of_me'
+
+        logging.info("Fetching 'photos of me'")
+
+        self._start_fetching()
+
+    def _start_fetching(self):
+        """
+        Starts the entire process, once self.kind has been set.
         """
         self._make_directories()
 
@@ -107,12 +129,12 @@ class Downloader(object):
         """
         Makes the directories we'll save stuff to.
         """
-        if os.path.exists( os.path.join(self.path, 'favorites') ):
-            logger.critical("The 'favorites' directory already exists. Move or delete it before running this script.")
+        if os.path.exists( os.path.join(self.path, self.kind) ):
+            logger.critical("The '{}' directory already exists. Move or delete it before running this script.".format(self.kind))
             exit()
 
-        os.makedirs( os.path.join(self.path, 'favorites', 'data') )
-        os.makedirs( os.path.join(self.path, 'favorites', 'photos') )
+        os.makedirs( os.path.join(self.path, self.kind, 'data') )
+        os.makedirs( os.path.join(self.path, self.kind, 'photos') )
 
     def _fetch_user_info(self):
         """
@@ -145,7 +167,13 @@ class Downloader(object):
         Adds the fetched data to self.results.
         """
         try:
-            photos = self.api.favorites.getList(
+            if self.kind == 'photos_of_me':
+                photos = self.api.people.getPhotosOf(
+                                            user_id='me',
+                                            per_page=self.per_page,
+                                            page=self.page_number)
+            else:
+                photos = self.api.favorites.getList(
                                             user_id=self.nsid,
                                             per_page=self.per_page,
                                             page=self.page_number)
@@ -238,7 +266,7 @@ class Downloader(object):
         # for photo in self.results:
         for photo in self.results:
             base_filename = self._make_photo_filename(photo['info'])
-            base_path = os.path.join(self.path, 'favorites', 'data')
+            base_path = os.path.join(self.path, self.kind, 'data')
 
             for kind in ['info', 'exif', 'sizes']:
                 if photo[kind] is not None:
@@ -250,6 +278,11 @@ class Downloader(object):
                         f.write( json.dumps(photo[kind], indent=2) )
 
     def _fetch_photos(self):
+        """
+        Once we've got all the data, download the actual photo/video files and
+        save them.
+        We try to save the original files if possible.
+        """
         for photo in self.results:
             if photo['sizes'] is not None:
                 if photo['info']['media'] == 'video':
@@ -274,7 +307,6 @@ class Downloader(object):
                     logger.error(
                         "Couldn't find the URL to download for photo {}".format(
                                                         photo['info']['id']))
-                    return None
 
                 download_filepath = self._download_file(url, content_types)
 
@@ -283,7 +315,7 @@ class Downloader(object):
                     filename = '{}.{}'.format(base_filename, extension)
 
                     save_filepath = os.path.join(
-                                    self.path, 'favorites', 'photos', filename)
+                                    self.path, self.kind, 'photos', filename)
 
                     os.rename(download_filepath, save_filepath)
 
@@ -404,6 +436,7 @@ class Downloader(object):
 
         return filename
 
+
 if __name__ == "__main__":
 
     downloader = Downloader()
@@ -412,5 +445,9 @@ if __name__ == "__main__":
 
     if action == 'authorize':
         downloader.authorize()
+    elif action == 'favorites':
+        downloader.get_favorites()
+    elif action == 'photosofme':
+        downloader.get_photos_of_me()
     else:
-        downloader.download()
+        logger.critical("Specify one of 'authorize', 'favorites' or 'photosof'.")
