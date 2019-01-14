@@ -1,4 +1,5 @@
 import configparser
+import glob
 import json
 import logging
 import os
@@ -14,6 +15,8 @@ import requests
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
+# Prevent logging every query from the API:
+flickrapi.set_log_level(logging.WARNING)
 
 CONFIG_FILE = 'config.ini'
 
@@ -34,16 +37,16 @@ class Downloader(object):
         self.total_pages = 1
 
         # How many photos to get per page (500 is maximum).
-        self.per_page = 500
+        self.per_page = 12
+
+        # Will be the IDs of any photos that were previously downloaded.
+        self.existing_photo_ids = []
 
         # Will store the IDs of all the photos to download.
-        self.photo_ids = []
+        self.photo_ids_to_fetch = []
 
         # Will store the complete data about photos downloaded.
         self.results = []
-
-        # Where we'll make directories and save the data and photos.
-        self.path = os.getcwd()
 
     def _load_config(self, config_file):
         config = configparser.ConfigParser()
@@ -110,7 +113,11 @@ class Downloader(object):
         """
         Starts the entire process, once self.kind has been set.
         """
+        self._set_paths()
+
         self._make_directories()
+
+        self._set_existing_photo_ids()
 
         self._fetch_user_info()
 
@@ -124,19 +131,71 @@ class Downloader(object):
 
         self._make_html_file()
 
-        logger.info("Done! Downloaded {} photo(s) and data".format(
-                                                            len(self.results)))
+        num_existing = len(self.existing_photo_ids)
+        num_downloaded = len(self.results)
+        total = num_existing + num_downloaded
+
+        logger.info("Done!")
+        logger.info("{} photo{} already on disk".format(
+                                num_existing, self._pluralize(num_existing)))
+        logger.info("{} photo{} and data downloaded".format(
+                            num_downloaded, self._pluralize(num_downloaded)))
+        logger.info("{} photo{} in total".format(
+                                                total, self._pluralize(total)))
+
+    def _set_paths(self):
+        """
+        Where we'll make directories and save the data and photos.
+        """
+        self.path        = os.path.join(os.getcwd(), self.kind)
+        self.data_path   = os.path.join(self.path, 'data')
+        self.photos_path = os.path.join(self.path, 'photos')
 
     def _make_directories(self):
         """
         Makes the directories we'll save stuff to.
+        Either:
+            favorites/data/ and favorites/photos/
+        Or:
+            photosof/data/ and photosof/photos/
         """
-        if os.path.exists( os.path.join(self.path, self.kind) ):
-            logger.critical("The '{}' directory already exists. Move or delete it before running this script.".format(self.kind))
-            exit()
+        if not os.path.exists(self.data_path):
+            logger.info("Creating the '{}' directory.".format(self.data_path))
+            os.makedirs(self.data_path)
 
-        os.makedirs( os.path.join(self.path, self.kind, 'data') )
-        os.makedirs( os.path.join(self.path, self.kind, 'photos') )
+        if not os.path.exists(self.photos_path):
+            logger.info("Creating the '{}' directory.".format(self.photos_path))
+            os.makedirs(self.photos_path)
+
+    def _set_existing_photo_ids(self):
+        """
+        If there are already some photos/videos in the directory, get their
+        IDs from their filenames and store them.
+        """
+        self.existing_photo_ids = self._find_downloaded_photo_ids()
+
+        num_existing = len(self.existing_photo_ids)
+
+        if num_existing > 0:
+            logger.info("Found {} photo{} already downloaded".format(
+                                num_existing, self._pluralize(num_existing)))
+
+    def _find_downloaded_photo_ids(self):
+        """
+        If there are already some photos/videos in the directory, get their
+        IDs from their filenames.
+        Returns a list of IDs.
+        """
+        photo_ids = []
+
+        for file in os.listdir(self.photos_path):
+            matches = re.search('_(\d+)\.[^.]+?$', file)
+            try:
+                photo_ids.append(matches[1])
+            except TypeError:
+                pass
+
+        return photo_ids
 
     def _fetch_user_info(self):
         """
@@ -158,7 +217,7 @@ class Downloader(object):
         Go through all the pages of photos and fetch the full list of photos.
         Just the basic data.
         """
-        while self.page_number <= self.total_pages:
+        while self.page_number <= 1:
             self._fetch_page()
             self.page_number += 1
             time.sleep(0.5) # Being nice.
@@ -192,19 +251,23 @@ class Downloader(object):
                 self.total_pages = int(photos['photos']['pages'])
 
             # Just save the photo IDs. All we need for now.
+            # Only for photos we don't already have from a previous run.
             for photo in photos['photos']['photo']:
-                self.photo_ids.append(photo['id'])
+                if photo['id'] not in self.existing_photo_ids:
+                    self.photo_ids_to_fetch.append(photo['id'])
 
+            num_photos = len(self.photo_ids_to_fetch)
             logger.info(
-                "Fetched one page of basic data about {} photo(s)".format(
-                                            len(photos['photos']['photo'])))
+                "Fetched one page of data about {} photo{} to download".format(
+                                    num_photos, self._pluralize(num_photos)))
 
     def _fetch_extra_data(self):
         """
         Now we've got the IDs of the photos, we go through and fetch
         complete data about each one and put it all into self.results.
         """
-        for id in self.photo_ids:
+        logger.info("Fetching extra data about them")
+        for id in self.photo_ids_to_fetch:
             self.results.append({
                 'info': self._fetch_photo_info(id),
                 'sizes': self._fetch_photo_sizes(id),
@@ -270,13 +333,12 @@ class Downloader(object):
         # for photo in self.results:
         for photo in self.results:
             base_filename = self._make_filename(photo['info'])
-            base_path = os.path.join(self.path, self.kind, 'data')
 
             for kind in ['info', 'exif', 'sizes']:
                 if photo[kind] is not None:
                     filename = '{}_{}.json'.format(base_filename, kind)
 
-                    path = os.path.join(base_path, filename)
+                    path = os.path.join(self.data_path, filename)
 
                     with open(path, 'w') as f:
                         f.write( json.dumps(photo[kind], indent=2) )
@@ -374,7 +436,7 @@ class Downloader(object):
         Makes the coplete path for the photo we'll save to disk.
         """
         filename = self._make_photo_filename(photo_info)
-        return  os.path.join(self.path, self.kind, 'photos', filename)
+        return  os.path.join(self.photos_path, filename)
 
     def _get_url_from_sizes(self, sizes, size):
         """
@@ -466,39 +528,49 @@ class Downloader(object):
 
         return filename
 
+    def _pluralize(self, num):
+        if num == 1:
+            return ''
+        else:
+            return 's'
+
     def _make_html_file(self):
         """
         Write a single HTML file listing all the photos.
         I know this is ugly and a template would be better.
         """
         list_html = ''
+        photos = []
 
-        for photo in self.results:
-            if photo['info']['owner']['realname']:
-                name = photo['info']['owner']['realname']
+        for file in sorted(glob.glob(os.path.join(self.data_path, '*_info.json'))):
+            with open(os.path.join(self.data_path, file), 'r') as f:
+                photos.append(json.load(f))
+
+        for photo in photos:
+            if photo['owner']['realname']:
+                name = photo['owner']['realname']
             else:
-                name = photo['info']['owner']['username']
-
-            file = os.path.join('')
+                name = photo['owner']['username']
 
             flickr_url = ''
-            for u in photo['info']['urls']['url']:
+            for u in photo['urls']['url']:
                 if u['type'] == 'photopage':
                     flickr_url = u['_content']
 
             description = ''
-            if photo['info']['description']['_content'] != '':
+            if photo['description']['_content'] != '':
                 description = '<p>{}</p>'.format(
-                                    photo['info']['description']['_content'])
+                                    photo['description']['_content'])
 
             data = {
-                'title': photo['info']['title']['_content'],
+                'title': photo['title']['_content'],
                 'author': name,
-                'file': self._make_photo_filepath(photo['info']),
+                'file': self._make_photo_filepath(photo),
                 'description': description,
-                'date_taken': photo['info']['dates']['taken'],
+                'date_taken': photo['dates']['taken'],
                 'flickr_url': flickr_url,
             }
+
             list_html += """
 <h2>{title}</h2>
 <ul>
@@ -516,18 +588,20 @@ class Downloader(object):
                 description=data['description'],
             )
 
-            if self.kind == 'favorites':
-                title = 'Favorites'
-            else:
-                title = 'Photos of you'
+        # Make the whole page.
 
-            css = """
-    body { background: #fff; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1.5; padding: 0 30px 2em 30px; }
+        if self.kind == 'favorites':
+            title = 'Favorites'
+        else:
+            title = 'Photos of you'
+
+        css = """
+    body { background: #fff; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1.5; padding: 0 30px 2em 30px; max-width: 50em; }
     h2 { margin: 1em 0 0 0; }
     ul { list-style-type: none; margin: 0; padding: 0; }
 """
 
-            html = """<!DOCTYPE html>
+        html = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -547,7 +621,7 @@ class Downloader(object):
                 list_html=list_html,
             )
 
-        path = os.path.join(self.path, self.kind, 'index.html')
+        path = os.path.join(self.path, 'index.html')
 
         with open(path, 'w') as f:
             f.write(html)
@@ -562,7 +636,7 @@ if __name__ == "__main__":
         downloader.authorize()
     elif action == 'favorites':
         downloader.get_favorites()
-    elif action == 'photosofme':
+    elif action == 'photosof':
         downloader.get_photos_of_me()
     else:
         logger.critical("Specify one of 'authorize', 'favorites' or 'photosof'.")

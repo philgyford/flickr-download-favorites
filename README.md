@@ -4,6 +4,7 @@ A python script that:
 
 * Downloads all your 'Fave' photos and videos from Flickr
 * Saves JSON files of data about each one
+* Makes a basic HTML file listing all the downloads
 * Can do the same for 'Photos of You'
 
 
@@ -41,6 +42,11 @@ Once that's done, download your Faves by doing:
 And download Photos Of You by doing:
 
     python download.py photosof
+
+If you run these again in the future, only new photos/videos will be downloaded,
+assuming your directories of photos and data are still in place from previous
+runs. If previously-downloaded photos have been deleted on Flickr, or if you've
+un-faved them, they won't be deleted from your local copy.
 
 
 ## Results
