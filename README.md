@@ -14,7 +14,7 @@ A python script that:
 
 2. Install the dependencies with pip:
 
-        pip install requirements.txt
+        pip install -r requirements.txt
 
     or with pipenv:
 
