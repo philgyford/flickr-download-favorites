@@ -79,6 +79,10 @@ Inside each one will be:
    photos/videos, some information about them, and links to the downloaded
    file and its page on Flickr.com.
 
+**NOTE:** I found some photos didn't completely download, so it's worth going
+through and viewing each file. Any that are only partially complete, either
+delete and run the script again, or manually replace.
+
 
 ## A note on privacy and rights
 
