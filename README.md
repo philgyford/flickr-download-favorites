@@ -56,28 +56,28 @@ Assuming all goes well each command creates on directory (`favorites/` or
 
 Inside each one will be:
 
-    * `photos/` - All the downloaded photos and videos.
+* `photos/` - All the downloaded photos and videos.
 
-      Where possible the original photos will be downloaded, otherwise the
-      largest size available.
+  Where possible the original photos will be downloaded, otherwise the
+  largest size available.
 
-      Videos are downloaded as MP4 files.
+  Videos are downloaded as MP4 files.
 
-      All filenames are of the format `datetime_name_id.ext`, e.g.
-      `2018-12-24_11-58-20_Mary_Loosemore_46511930971.jpg`. The datetime is the
-      time the photo was taken, and the name is the person whose photo it is.
+  All filenames are of the format `datetime_name_id.ext`, e.g.
+  `2018-12-24_11-58-20_Mary_Loosemore_46511930971.jpg`. The datetime is the
+  time the photo was taken, and the name is the person whose photo it is.
 
-    * `data/` - For every photo/video there should be 2 or 3 JSON files, with
-      names similar to their associated photo/video.
-        * `[filename]_exif.json` - The results of [`photo.getExif()`][exif]
-        * `[filename]_info.json` - The results of [`photo.getInfo()`][info]
-        * `[filename]_sizes.json` - The results of [`photo.getSizes()`][sizes]
-      If there was an error fetching the data for a photo, or it's not
-      available, that file will not be present.
+* `data/` - For every photo/video there should be 2 or 3 JSON files, with
+  names similar to their associated photo/video.
+    * `[filename]_exif.json` - The results of [`photo.getExif()`][exif]
+    * `[filename]_info.json` - The results of [`photo.getInfo()`][info]
+    * `[filename]_sizes.json` - The results of [`photo.getSizes()`][sizes]  
+  If there was an error fetching the data for a photo, or it's not
+  available, that file will not be present.
 
-     * `index.html` - A basic HTML file listing all the downloaded,
-       photos/videos, some information about them, and links to the downloaded
-       file and its page on Flickr.com.
+ * `index.html` - A basic HTML file listing all the downloaded,
+   photos/videos, some information about them, and links to the downloaded
+   file and its page on Flickr.com.
 
 
 ## A note on privacy and rights
