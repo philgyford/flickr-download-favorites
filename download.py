@@ -320,7 +320,13 @@ class Downloader(object):
             results = self.api.photos.getExif(photo_id = photo_id)
             results = results['photo']
         except FlickrError as e:
-            logger.error("Couldn't fetch photo EXIF data for {}: {}".format(
+            if str(e) == 'Error: 2: Permission denied':
+                # A common error, due to permissions set by photo owner, so
+                # make it clearer.
+                logger.error("EXIF data for {} is hidden by the owner".format(
+                                                                    photo_id))
+            else:
+                logger.error("Couldn't fetch photo EXIF data for {}: {}".format(
                                                                 photo_id, e))
             results = None
 
@@ -349,6 +355,8 @@ class Downloader(object):
         save them.
         We try to save the original files if possible.
         """
+        logger.info("Downloading photo files")
+
         for photo in self.results:
             if photo['sizes'] is not None:
                 if photo['info']['media'] == 'video':
