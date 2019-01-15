@@ -392,10 +392,12 @@ class Downloader(object):
         Does not include the file extension.
         Used for making the JSON files' names as well as the photo/video itself.
         """
-        if photo_info['owner']['realname'] != '':
-            name = photo_info['owner']['realname']
-        else:
-            name = photo_info['owner']['username']
+        name = 'NO OWNER'
+        if 'owner' in photo_info:
+            if 'realname' in photo_info['owner'] and photo_info['owner']['realname'] != '':
+                name = photo_info['owner']['realname']
+            elif 'username' in photo_info['owner']:
+                name = photo_info['owner']['username']
 
         filename = '{}_{}_{}'.format(
                                 photo_info['dates']['taken'],
