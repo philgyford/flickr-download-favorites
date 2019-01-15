@@ -222,12 +222,17 @@ class Downloader(object):
             self.page_number += 1
             time.sleep(0.5) # Being nice.
 
+        num_photos = len(self.photo_ids_to_fetch)
+        logger.info("{} photo{} to download in total".format(num_photos, self._pluralize(num_photos)))
+
     def _fetch_page(self):
         """
         Fetch one page of basic data about some photos.
         Adds the fetched data to self.results.
         """
         time.sleep(0.5) # Being nice.
+
+        num_photos_to_fetch = 0
 
         try:
             if self.kind == 'photos_of_me':
@@ -255,18 +260,24 @@ class Downloader(object):
             for photo in photos['photos']['photo']:
                 if photo['id'] not in self.existing_photo_ids:
                     self.photo_ids_to_fetch.append(photo['id'])
+                    num_photos_to_fetch += 1
 
             num_photos = len(self.photo_ids_to_fetch)
             logger.info(
-                "Fetched one page of data about {} photo{} to download".format(
-                                    num_photos, self._pluralize(num_photos)))
+                "Fetched one page of data: {} photo{} to download".format(
+                    num_photos_to_fetch, self._pluralize(num_photos_to_fetch)))
 
     def _fetch_extra_data(self):
         """
         Now we've got the IDs of the photos, we go through and fetch
         complete data about each one and put it all into self.results.
         """
-        logger.info("Fetching extra data about them")
+        noun = 'them'
+        if len(self.photo_ids_to_fetch) == 1:
+            noun = 'it'
+
+        logger.info("Fetching extra data about {}".format(noun))
+
         for id in self.photo_ids_to_fetch:
             self.results.append({
                 'info': self._fetch_photo_info(id),
@@ -355,7 +366,7 @@ class Downloader(object):
         save them.
         We try to save the original files if possible.
         """
-        logger.info("Downloading photo files")
+        logger.info("Downloading photo file{}".format(self._pluralize(len(self.results))))
 
         for photo in self.results:
             if photo['sizes'] is not None:
