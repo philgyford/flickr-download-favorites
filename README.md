@@ -12,11 +12,11 @@ A python script that:
 
 1. Download or check out this code.
 
-2. Install the dependencies with pip:
+2. Install the dependencies with [pip][pip]:
 
         pip install -r requirements.txt
 
-    or with pipenv:
+    or with [pipenv][pipenv]:
 
         pipenv install
 
@@ -25,6 +25,9 @@ A python script that:
 4. Copy the `config_example.ini` file to `config.ini`.
 
 5. Replace the values in `config.ini` with your App's API Key and API Secret.
+
+[pip]: https://pip.pypa.io/en/stable/
+[pipenv]: https://pipenv.readthedocs.io/en/latest/
 
 
 ## Usage
