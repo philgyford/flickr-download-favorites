@@ -59,31 +59,33 @@ Assuming all goes well each command creates on directory (`favorites/` or
 
 Inside each one will be:
 
-* `photos/` - All the downloaded photos and videos.
+* `photos/` – All the downloaded photos and videos.
 
   Where possible the original photos will be downloaded, otherwise the
   largest size available.
 
   Videos are downloaded as MP4 files.
 
-  All filenames are of the format `datetime_name_id.ext`, e.g.
-  `2018-12-24_11-58-20_Mary_Loosemore_46511930971.jpg`. The datetime is the
-  time the photo was taken, and the name is the person whose photo it is.
+  All filenames are of the format `datetime_name_id.ext`, using the datetime of
+  when the photo was taken, the name of the person whose photo it is, and the
+  photo's ID on Flickr.  
+  e.g. `2018-12-24_11-58-20_Mary_Loosemore_46511930971.jpg`
 
-* `data/` - For every photo/video there should be 2 or 3 JSON files, with
+* `data/` – For every photo/video there should be 2 or 3 JSON files, with
   names similar to their associated photo/video.
-    * `[filename]_exif.json` - The results of [`photo.getExif()`][exif]
-    * `[filename]_info.json` - The results of [`photo.getInfo()`][info]
-    * `[filename]_sizes.json` - The results of [`photo.getSizes()`][sizes]  
+    * `[filename]_exif.json` – The results of [`photo.getExif()`][exif]
+    * `[filename]_info.json` – The results of [`photo.getInfo()`][info]
+    * `[filename]_sizes.json` – The results of [`photo.getSizes()`][sizes]
+
   If there was an error fetching the data for a photo, or it's not
   available, that file will not be present.
 
- * `index.html` - A basic HTML file listing all the downloaded,
+* `index.html` – A basic HTML file listing all the downloaded,
    photos/videos, some information about them, and links to the downloaded
-   file and its page on Flickr.com.
+   file and its page on flickr.com.
 
 **NOTE:** I found some photos didn't completely download, so it's worth going
-through and viewing each file -- some might be incomplete and partly gray.
+through and viewing each file – some might be incomplete and partly gray.
 You can delete these and then run the script again to replace them; then check
 again. This seems a common problem with Flickr downloading tools.
 
@@ -104,7 +106,7 @@ by you, with your permissions. This means you can download photos/videos that
 are only visible to you or a small number of people, so don't go sharing them
 all without checking their permissions on the site (or in the JSON files) first.
 
-Also, the licenses might be restrictive -- such as "All Rights Reserved" -- so
+Also, the licenses might be restrictive – such as "All Rights Reserved" – so
 be aware of this too.
 
 If the original is no longer on Flickr this information can be found in the
