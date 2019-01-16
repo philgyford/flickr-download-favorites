@@ -1,6 +1,6 @@
 # Flickr Download Favorites
 
-A python script that:
+A Python 3 script that:
 
 * Downloads all your 'Fave' photos and videos from Flickr
 * Saves JSON files of data about each one
