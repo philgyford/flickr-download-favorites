@@ -122,7 +122,7 @@ e.g. this photo is private, but visible to both Friends and Family:
 ```
 
 The data also have a `license` attribute that's a digit. This refers to the
-licenses as returned by the [licenses.getInfo][licenses] command:
+licenses as returned by the [licenses.getInfo()][licenses] command:
 
 ```
  0 All Rights Reserved
