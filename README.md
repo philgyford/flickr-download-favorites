@@ -83,8 +83,18 @@ Inside each one will be:
    file and its page on Flickr.com.
 
 **NOTE:** I found some photos didn't completely download, so it's worth going
-through and viewing each file. Any that are only partially complete, either
-delete and run the script again, or manually replace.
+through and viewing each file -- some might be incomplete and partly gray.
+You can delete these and then run the script again to replace them; then check
+again. This seems a common problem with Flickr downloading tools.
+
+One quick way to find incomplete images is using `jpeginfo` (e.g. on macOS,
+it can be installed using [Homebrew][homebrew] and `brew install jpeginfo`). For
+example:
+
+    cd favorites/photos
+    find . -iname "*.jpg" -exec jpeginfo -c {} \; | grep -E "WARNING|ERROR"
+
+[homebrew]: https://brew.sh
 
 
 ## A note on privacy and rights
@@ -132,3 +142,8 @@ licenses as returned by the [licenses.getInfo][licenses] command:
 [info]: https://www.flickr.com/services/api/flickr.photos.getInfo.htm
 [sizes]: https://www.flickr.com/services/api/flickr.photos.getSizes.htm
 [licenses]: https://www.flickr.com/services/api/flickr.photos.licenses.getInfo.html
+
+
+## Credits
+
+* [Tom Taylor](https://github.com/tomtaylor) for the `jpeginfo` tip
